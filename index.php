@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // ── Check Customer (User table) ───────────────────────────
-        $stmt = $pdo->prepare("SELECT * FROM `User` WHERE User_ID = ?");
+        $stmt = $pdo->prepare("SELECT * FROM `User` WHERE User_name = ?");
         $stmt->execute([$login_id]);
         $user = $stmt->fetch();
         if ($user && password_verify($password, $user['password'])) {

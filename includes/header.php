@@ -41,12 +41,13 @@
             <a href="/water_management/admin/reports.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'reports.php' ? 'active' : ''; ?>">
                 <i class="fas fa-chart-bar"></i> รายงาน
             </a>
+            
             <span style="color:rgba(255,255,255,0.6); margin: 0 8px;">|</span>
     <span style="color:rgba(255,255,255,0.8); font-size:0.9rem;">
         <i class="fas fa-user-shield"></i>
         <?php echo htmlspecialchars($_SESSION['name'] ?? 'Admin'); ?>
     </span>
-    <a href="/water_management/admin/logout.php" style="color:#e74c3c;">
+    <a href="../logout.php" style="color:#e74c3c;">
         <i class="fas fa-sign-out-alt"></i> ออกจากระบบ
     </a>
         </div>

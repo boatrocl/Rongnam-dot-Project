@@ -56,7 +56,7 @@ $base_url = "http://" . $_SERVER['SERVER_NAME'] . "/water_system_folder/"; // Ch
     <div class="nav-links">
         <a href="index.php"><i class="fas fa-home"></i> หน้าแรก</a>
         <a href="history.php"><i class="fas fa-history"></i> ประวัติการสั่งซื้อ</a>
-        <a href="/water_management/customer/logout.php" style="background: #c0392b; padding: 8px 15px; border-radius: 5px;">
+        <a href="../logout.php" style="background: #c0392b; padding: 8px 15px; border-radius: 5px;">
             <i class="fas fa-sign-out-alt"></i> ออกจากระบบ
         </a>
     </div>
