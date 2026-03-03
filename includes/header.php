@@ -23,6 +23,9 @@
             <a href="/water_management/admin/orders.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'orders.php' ? 'active' : ''; ?>">
                 <i class="fas fa-shopping-cart"></i> ออเดอร์
             </a>
+            <a href="/water_management/admin/pending_orders.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'pending_orders.php' ? 'active' : ''; ?>">
+                <i class="fas fa-chart-bar"></i> ออเดอร์ที่รอการยืนยัน
+            </a>
             <a href="/water_management/admin/customers.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'customers.php' ? 'active' : ''; ?>">
                 <i class="fas fa-users"></i> ลูกค้า
             </a>
