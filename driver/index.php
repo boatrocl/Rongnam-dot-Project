@@ -5,12 +5,24 @@ require_once '../config/database.php';
 
 $driver_id = $_SESSION['ref_id'];
 
-// All active + unpaid/partial jobs
+// ── Helper: extract [Product Name] from note ──────────────────────────────────
+function extractBottleType(string $note): string {
+    if (preg_match('/^\[([^\]]+)\]/', $note, $m)) {
+        return trim($m[1]);
+    }
+    return '';
+}
+
+// ── All active + unpaid/partial jobs, join req note for bottle type ───────────
 $stmt = $pdo->prepare("
-    SELECT o.*, u.User_name, u.tel, l.loc_name, l.details, l.latitude, l.longitude
+    SELECT o.*,
+           u.User_name, u.tel,
+           l.loc_name, l.details, l.latitude, l.longitude,
+           COALESCE(req.note, '') AS req_note
     FROM `order` o
-    JOIN user u     ON o.User_ID = u.User_ID
-    JOIN location l ON o.loc_id  = l.loc_id
+    JOIN user u       ON o.User_ID  = u.User_ID
+    JOIN location l   ON o.loc_id   = l.loc_id
+    LEFT JOIN order_request req ON req.order_id = o.order_id
     WHERE o.DID = ?
     AND (
         o.order_status NOT IN ('completed','cancelled')
@@ -21,17 +33,16 @@ $stmt = $pdo->prepare("
 $stmt->execute([$driver_id]);
 $jobs = $stmt->fetchAll();
 
-// Quick stats
-$total_jobs    = count($jobs);
-$pending_pay   = array_filter($jobs, fn($j) => in_array($j['payment_status'], ['unpaid','partial']));
-$today_jobs    = array_filter($jobs, fn($j) => $j['scheduled_date'] === date('Y-m-d'));
+$total_jobs  = count($jobs);
+$pending_pay = array_filter($jobs, fn($j) => in_array($j['payment_status'], ['unpaid','partial']));
+$today_jobs  = array_filter($jobs, fn($j) => $j['scheduled_date'] === date('Y-m-d'));
 
 include '../includes/header_driver.php';
 ?>
 
 <div class="container">
 
-    <!-- Driver stats strip -->
+    <!-- Stats strip -->
     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:18px;">
         <div style="background:#fff; border-radius:10px; padding:12px 10px; text-align:center; box-shadow:var(--card-shadow);">
             <div style="font-size:1.5rem; font-weight:bold; color:var(--blue);"><?php echo $total_jobs; ?></div>
@@ -70,25 +81,25 @@ include '../includes/header_driver.php';
             $total_price = $job['total_expected_price'];
             $del_pct     = $qty > 0 ? min(100, round($delivered / $qty * 100)) : 0;
             $pay_pct     = $total_price > 0 ? min(100, round($collected / $total_price * 100)) : 0;
-            $remaining   = $qty - $delivered;
+            $remaining     = $qty - $delivered;
             $remaining_pay = $total_price - $collected;
 
-            // Card accent colour
+            $bottle_type = extractBottleType($job['req_note']);
+
             $border_color = match(true) {
-                $job['payment_status'] === 'partial'                     => '#f39c12',
-                $job['order_status']   === 'processing'                  => '#2471a3',
-                $is_past && $job['order_status'] !== 'completed'         => '#e74c3c',
-                default                                                  => '#27ae60',
+                $job['payment_status'] === 'partial'             => '#f39c12',
+                $job['order_status']   === 'processing'          => '#2471a3',
+                $is_past && $job['order_status'] !== 'completed' => '#e74c3c',
+                default                                          => '#27ae60',
             };
         ?>
 
         <div class="job-card" style="border-left-color: <?php echo $border_color; ?>;">
 
-            <!-- Card top row -->
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+            <!-- Top row -->
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
                 <div style="flex:1; min-width:0;">
-                    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                        <!-- Date chip -->
+                    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
                         <span style="font-size:0.68rem; padding:2px 7px; border-radius:20px;
                             background:<?php echo $is_today ? '#d6eaf8' : ($is_past ? '#fadbd8' : '#f0f0f0'); ?>;
                             color:<?php echo $is_today ? '#1a5276' : ($is_past ? '#c0392b' : '#666'); ?>;
@@ -96,7 +107,6 @@ include '../includes/header_driver.php';
                             <i class="fas fa-calendar-day"></i>
                             <?php echo $is_today ? 'วันนี้' : ($is_past ? 'เลยกำหนด' : date('d/m', strtotime($job['scheduled_date']))); ?>
                         </span>
-                        <!-- Payment badge -->
                         <span class="badge badge-<?php echo $job['payment_status']; ?>">
                             <?php echo match($job['payment_status']) {
                                 'paid'    => '✓ ชำระแล้ว',
@@ -105,14 +115,13 @@ include '../includes/header_driver.php';
                             }; ?>
                         </span>
                     </div>
-                    <h3 style="margin:6px 0 2px 0; font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    <h3 style="margin:0 0 2px 0; font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                         <?php echo htmlspecialchars($job['loc_name']); ?>
                     </h3>
                     <p style="margin:0; font-size:0.78rem; color:var(--grey);">
                         <?php echo htmlspecialchars($job['details'] ?? ''); ?>
                     </p>
                 </div>
-                <!-- Order status badge -->
                 <span class="badge badge-<?php echo $job['order_status']; ?>" style="margin-left:8px; white-space:nowrap;">
                     <?php echo match($job['order_status']) {
                         'pending'    => 'รอ',
@@ -121,6 +130,41 @@ include '../includes/header_driver.php';
                         default      => $job['order_status'],
                     }; ?>
                 </span>
+            </div>
+
+            <!-- Bottle + qty summary bar -->
+            <div style="background:#f0f6ff; border-radius:8px; padding:9px 12px; margin-bottom:10px;
+                        font-size:0.83rem; color:#1b2a4a; display:flex; align-items:center;
+                        gap:10px; flex-wrap:wrap;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="font-size:1.1rem;">💧</span>
+                    <div>
+                        <div style="font-weight:700; line-height:1.2;">
+                            <?php echo $bottle_type ? htmlspecialchars($bottle_type) : 'ไม่ระบุประเภท'; ?>
+                        </div>
+                        <div style="font-size:0.72rem; color:#5d7099;">ประเภทสินค้า</div>
+                    </div>
+                </div>
+                <div style="width:1px; height:28px; background:#c8d8ee; flex-shrink:0;"></div>
+                <div>
+                    <div style="font-weight:700; line-height:1.2;">
+                        <?php echo $qty; ?> ขวด
+                        <?php if ($delivered > 0): ?>
+                        <span style="font-size:0.75rem; color:var(--green); font-weight:600;">
+                            (ส่งแล้ว <?php echo $delivered; ?>)
+                        </span>
+                        <?php endif; ?>
+                    </div>
+                    <div style="font-size:0.72rem; color:#5d7099;">จำนวนที่สั่ง</div>
+                </div>
+                <?php if ($remaining > 0): ?>
+                <div style="margin-left:auto;">
+                    <div style="font-weight:700; color:var(--amber); line-height:1.2;">
+                        คงเหลือ <?php echo $remaining; ?>
+                    </div>
+                    <div style="font-size:0.72rem; color:#5d7099;">ขวด</div>
+                </div>
+                <?php endif; ?>
             </div>
 
             <!-- Progress: delivery -->
@@ -139,9 +183,9 @@ include '../includes/header_driver.php';
             <!-- Progress: payment -->
             <div class="progress-wrap" style="margin-bottom:12px;">
                 <div class="progress-label">
-                    <span><i class="fas fa-money-bill-wave" style="color:var(--green);"></i> เก็บเงิน <?php echo number_format($collected, 0); ?>/<?php echo number_format($total_price, 0); ?> บาท</span>
+                    <span><i class="fas fa-money-bill-wave" style="color:var(--green);"></i> เก็บเงิน <?php echo number_format($collected,0); ?>/<?php echo number_format($total_price,0); ?> บาท</span>
                     <span style="color:<?php echo $remaining_pay <= 0 ? 'var(--green)' : 'var(--red)'; ?>;">
-                        <?php echo $remaining_pay <= 0 ? 'ชำระครบ' : 'ค้าง ' . number_format($remaining_pay, 0) . ' บาท'; ?>
+                        <?php echo $remaining_pay <= 0 ? 'ชำระครบ' : 'ค้าง '.number_format($remaining_pay,0).' บาท'; ?>
                     </span>
                 </div>
                 <div class="progress-track">
@@ -149,7 +193,7 @@ include '../includes/header_driver.php';
                 </div>
             </div>
 
-            <!-- Customer info row -->
+            <!-- Customer info -->
             <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
                 <a href="tel:<?php echo htmlspecialchars($job['tel']); ?>"
                    style="display:flex; align-items:center; gap:5px; font-size:0.82rem;
@@ -169,8 +213,7 @@ include '../includes/header_driver.php';
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                 <?php if ($job['latitude'] && $job['longitude']): ?>
                 <a href="https://www.google.com/maps?q=<?php echo $job['latitude']; ?>,<?php echo $job['longitude']; ?>"
-                   target="_blank" class="btn-action"
-                   style="background:#ecf0f1; color:#2c3e50;">
+                   target="_blank" class="btn-action" style="background:#ecf0f1; color:#2c3e50;">
                     <i class="fas fa-map-marker-alt"></i> นำทาง
                 </a>
                 <?php else: ?>
@@ -178,10 +221,11 @@ include '../includes/header_driver.php';
                     <i class="fas fa-map-marker-alt"></i> ไม่มีพิกัด
                 </div>
                 <?php endif; ?>
-
                 <a href="update_order.php?id=<?php echo urlencode($job['order_id']); ?>"
                    class="btn-action"
-                   style="background: <?php echo $job['confirmed_by_driver'] ? 'linear-gradient(135deg,#2471a3,#1a5276)' : 'linear-gradient(135deg,#27ae60,#1e8449)'; ?>;">
+                   style="background:<?php echo $job['confirmed_by_driver']
+                       ? 'linear-gradient(135deg,#2471a3,#1a5276)'
+                       : 'linear-gradient(135deg,#27ae60,#1e8449)'; ?>;">
                     <i class="fas fa-<?php echo $job['confirmed_by_driver'] ? 'edit' : 'play'; ?>"></i>
                     <?php echo $job['confirmed_by_driver'] ? 'อัปเดต' : 'เริ่มงาน'; ?>
                 </a>

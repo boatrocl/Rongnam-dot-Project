@@ -161,13 +161,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <?php require_once '../includes/footer.php'; ?>
-```
-
----
-
-## File summary
-```
-pages/
-├── locations.php         ← list + delete + search
-├── location_detail.php   ← stats + GPS link + order history  
-└── location_form.php     ← add & edit (same file, detects mode via ?id=)

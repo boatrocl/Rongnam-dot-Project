@@ -170,15 +170,4 @@ $orders = $stmt->fetchAll();
 </div>
 
 <?php require_once '../includes/footer.php'; ?>
-```
 
----
-
-## File structure so far
-```
-pages/
-├── drivers.php          ← list of all drivers
-├── driver_detail.php    ← individual driver page
-├── customers.php
-├── customer_detail.php
-└── orders.php

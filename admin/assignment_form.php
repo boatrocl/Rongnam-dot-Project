@@ -90,15 +90,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <?php require_once '../includes/footer.php'; ?>
-```
-
----
-
-## File summary
-```
-pages/
-├── routes.php            ← list + stats + delete
-├── route_detail.php      ← villages + driver assignments + order stats
-├── route_form.php        ← add & edit routes
-├── village_form.php      ← add & edit villages (linked from route_detail)
-└── assignment_form.php   ← assign a driver to a route+day

@@ -47,6 +47,9 @@ $recent_orders = $stmt->fetchAll();
 // Villages for modal
 $villages = $pdo->query("SELECT * FROM village ORDER BY village_name")->fetchAll();
 
+// Products for size selection
+$products = $pdo->query("SELECT * FROM product WHERE product_id != 'P005' ORDER BY price ASC")->fetchAll();
+
 // Success message
 $success_msg = '';
 if (isset($_GET['success'])) {
@@ -68,7 +71,7 @@ require_once '../includes/header_customer.php';
     </div>
     <?php endif; ?>
 
-    <!-- Unpaid warning (only if owed) -->
+    <!-- Unpaid warning -->
     <?php if ($user['Unpaid_amount'] > 0): ?>
     <div class="unpaid-banner">
         <i class="fas fa-exclamation-triangle"></i>
@@ -192,33 +195,84 @@ require_once '../includes/header_customer.php';
 
 </div>
 
-<!-- ── Modal: Order request ──────────────────────────────────── -->
+<!-- ════════════════════════════════════════════════════════════
+     Modal: Order request
+════════════════════════════════════════════════════════════ -->
 <div id="orderModal" class="modal-backdrop">
     <div class="modal-sheet">
         <div class="modal-handle"></div>
-        <div class="modal-title"><i class="fas fa-droplet" style="color:var(--foam);"></i> ส่งคำขอสั่งน้ำ</div>
-        <form method="POST" action="submit_order_request.php">
+        <div class="modal-title">
+            <i class="fas fa-droplet" style="color:var(--foam);"></i> ส่งคำขอสั่งน้ำ
+        </div>
+        <form method="POST" action="submit_order_request.php" id="orderForm">
             <input type="hidden" name="loc_id" id="modal_loc_id">
+
+            <!-- Location (read-only display) -->
             <div class="field">
                 <label>สถานที่จัดส่ง</label>
                 <input type="text" id="modal_loc_name" readonly
                        style="background:var(--light); color:var(--muted);">
             </div>
+
+            <!-- Requested date -->
             <div class="field">
-                <label>วันที่ต้องการรับ</label>
+                <label>วันที่ต้องการรับ <span style="color:#e74c3c;">*</span></label>
                 <input type="date" name="requested_date" required
                        min="<?php echo date('Y-m-d', strtotime('+1 day')); ?>">
             </div>
+
+            <!-- Product size cards -->
             <div class="field">
-                <label>จำนวน (ถัง)</label>
-                <input type="number" name="qty" required min="1" value="1">
+                <label>ประเภทสินค้า <span style="color:#e74c3c;">*</span></label>
+                <div class="product-grid" id="productGrid">
+                    <?php foreach($products as $p): ?>
+                    <label class="product-card">
+                        <input type="radio" name="product_id" value="<?php echo $p['product_id']; ?>"
+                               data-name="<?php echo htmlspecialchars($p['name']); ?>"
+                               data-price="<?php echo $p['price']; ?>"
+                               onchange="onProductChange(this)" required>
+                        <div class="product-card-inner">
+                            <div class="product-icon">💧</div>
+                            <div class="product-name"><?php echo htmlspecialchars($p['name']); ?></div>
+                            <div class="product-price">฿<?php echo number_format($p['price'], 0); ?>/ถัง</div>
+                        </div>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
             </div>
+
+            <!-- Quantity + live price estimate -->
+            <div class="field">
+                <label>จำนวน (ถัง) <span style="color:#e74c3c;">*</span></label>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button type="button" class="qty-btn" onclick="changeQty(-1)">−</button>
+                    <input type="number" name="qty" id="qtyInput" required min="1" value="1"
+                           style="text-align:center; width:72px; font-size:1.1rem; font-weight:700;"
+                           oninput="updateEstimate()">
+                    <button type="button" class="qty-btn" onclick="changeQty(1)">+</button>
+                </div>
+            </div>
+
+            <!-- Price estimate chip -->
+            <div id="estimateChip" style="display:none; background:var(--light);
+                 border-radius:8px; padding:10px 14px; margin-bottom:4px;
+                 font-size:0.85rem; color:var(--navy); display:flex;
+                 justify-content:space-between; align-items:center;">
+                <span>ราคาประมาณ</span>
+                <strong id="estimateAmt" style="color:var(--foam); font-size:1rem;"></strong>
+            </div>
+
+            <!-- Note -->
             <div class="field">
                 <label>หมายเหตุ (ถ้ามี)</label>
-                <textarea name="note" rows="2" placeholder="ไม่มีใครอยู่บ้านช่วง..."></textarea>
+                <textarea name="note" id="noteInput" rows="2"
+                          placeholder="เช่น ไม่มีใครอยู่บ้านช่วง 12:00-14:00"></textarea>
             </div>
+
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px;">
-                <button type="button" onclick="closeModal('orderModal')" class="btn btn-ghost btn-block">ยกเลิก</button>
+                <button type="button" onclick="closeModal('orderModal')" class="btn btn-ghost btn-block">
+                    ยกเลิก
+                </button>
                 <button type="submit" class="btn btn-primary btn-block">
                     <i class="fas fa-paper-plane"></i> ส่งคำขอ
                 </button>
@@ -227,11 +281,15 @@ require_once '../includes/header_customer.php';
     </div>
 </div>
 
-<!-- ── Modal: Add location ───────────────────────────────────── -->
+<!-- ════════════════════════════════════════════════════════════
+     Modal: Add location
+════════════════════════════════════════════════════════════ -->
 <div id="locationModal" class="modal-backdrop">
     <div class="modal-sheet">
         <div class="modal-handle"></div>
-        <div class="modal-title"><i class="fas fa-map-marked-alt" style="color:var(--foam);"></i> เพิ่มสถานที่จัดส่ง</div>
+        <div class="modal-title">
+            <i class="fas fa-map-marked-alt" style="color:var(--foam);"></i> เพิ่มสถานที่จัดส่ง
+        </div>
         <form method="POST" action="submit_location.php">
             <div class="field">
                 <label>ชื่อสถานที่ (เช่น บ้านแม่, ออฟฟิศ)</label>
@@ -264,7 +322,9 @@ require_once '../includes/header_customer.php';
                 </div>
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px;">
-                <button type="button" onclick="closeModal('locationModal')" class="btn btn-ghost btn-block">ยกเลิก</button>
+                <button type="button" onclick="closeModal('locationModal')" class="btn btn-ghost btn-block">
+                    ยกเลิก
+                </button>
                 <button type="submit" class="btn btn-primary btn-block">
                     <i class="fas fa-save"></i> บันทึก
                 </button>
@@ -273,7 +333,70 @@ require_once '../includes/header_customer.php';
     </div>
 </div>
 
+<!-- ════════════════════════════════════════════════════════════
+     Styles for new product cards + qty stepper
+════════════════════════════════════════════════════════════ -->
+<style>
+/* Product size selection grid */
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 4px;
+}
+.product-card {
+    cursor: pointer;
+    display: block;
+}
+.product-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0; height: 0;
+}
+.product-card-inner {
+    border: 2px solid var(--border, #e0e4ed);
+    border-radius: 10px;
+    padding: 12px 8px;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    background: #fff;
+    user-select: none;
+}
+.product-card input[type="radio"]:checked + .product-card-inner {
+    border-color: var(--foam, #5dade2);
+    background: #eaf6ff;
+    box-shadow: 0 0 0 3px rgba(93,173,226,0.18);
+}
+.product-card-inner:hover {
+    border-color: var(--foam, #5dade2);
+    background: #f5fbff;
+}
+.product-icon  { font-size: 1.5rem; margin-bottom: 4px; }
+.product-name  { font-size: 0.78rem; font-weight: 600; color: var(--navy, #1b2a4a); line-height: 1.3; }
+.product-price { font-size: 0.82rem; color: var(--foam, #5dade2); font-weight: 700; margin-top: 4px; }
+
+/* Qty stepper buttons */
+.qty-btn {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    border: 2px solid var(--border, #e0e4ed);
+    background: #fff;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--navy, #1b2a4a);
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.12s, border-color 0.12s;
+    flex-shrink: 0;
+}
+.qty-btn:hover {
+    background: var(--light, #f4f6fa);
+    border-color: var(--foam, #5dade2);
+}
+</style>
+
 <script>
+// ── Modal helpers ─────────────────────────────────────────────
 function openModal(id) {
     document.getElementById(id).classList.add('open');
     document.body.style.overflow = 'hidden';
@@ -283,13 +406,68 @@ function closeModal(id) {
     document.body.style.overflow = '';
 }
 function openOrderModal(locId, locName) {
-    document.getElementById('modal_loc_id').value  = locId;
+    document.getElementById('modal_loc_id').value   = locId;
     document.getElementById('modal_loc_name').value = locName;
+    // reset form state
+    document.getElementById('orderForm').reset();
+    document.getElementById('modal_loc_id').value   = locId;   // reset clears hidden too
+    document.getElementById('modal_loc_name').value = locName;
+    document.querySelectorAll('.product-card-inner').forEach(el => {
+        el.style.borderColor = '';
+        el.style.background  = '';
+        el.style.boxShadow   = '';
+    });
+    document.getElementById('estimateChip').style.display = 'none';
     openModal('orderModal');
 }
+
 // Close on backdrop click
 document.querySelectorAll('.modal-backdrop').forEach(m => {
     m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); });
+});
+
+// ── Qty stepper ───────────────────────────────────────────────
+function changeQty(delta) {
+    const inp = document.getElementById('qtyInput');
+    const val = Math.max(1, (parseInt(inp.value) || 1) + delta);
+    inp.value = val;
+    updateEstimate();
+}
+
+// ── Product selection → update note & estimate ────────────────
+let selectedPrice = 0;
+let selectedName  = '';
+
+function onProductChange(radio) {
+    selectedPrice = parseFloat(radio.dataset.price) || 0;
+    selectedName  = radio.dataset.name || '';
+    updateEstimate();
+}
+
+function updateEstimate() {
+    const qty   = parseInt(document.getElementById('qtyInput').value) || 0;
+    const chip  = document.getElementById('estimateChip');
+    const amt   = document.getElementById('estimateAmt');
+
+    if (selectedPrice > 0 && qty > 0) {
+        const total = (qty * selectedPrice).toLocaleString('th-TH', {minimumFractionDigits:2});
+        amt.textContent  = '฿' + total;
+        chip.style.display = 'flex';
+    } else {
+        chip.style.display = 'none';
+    }
+}
+
+// ── Inject product info into note before submit ───────────────
+// (since order_request has no product_id column, we prepend to note)
+document.getElementById('orderForm').addEventListener('submit', function(e) {
+    if (!selectedName) return; // radio validation will catch it
+    const noteEl = document.getElementById('noteInput');
+    const prefix = '[' + selectedName + '] ';
+    // Only prepend if not already there (prevent double-prepend on retry)
+    if (!noteEl.value.startsWith('[')) {
+        noteEl.value = prefix + noteEl.value;
+    }
 });
 </script>
 

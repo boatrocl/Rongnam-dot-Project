@@ -146,11 +146,3 @@ $orders = $stmt->fetchAll();
 </div>
 
 <?php require_once '../includes/footer.php'; ?>
-```
-
-## How it works
-```
-customers.php  →  click "ดูข้อมูล"  →  customer_detail.php?id=U001
-                                              ↓
-                                    Fetches User, Locations,
-                                    and Orders for that ID
